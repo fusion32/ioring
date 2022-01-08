@@ -257,6 +257,9 @@ int main(int argc, char **argv){
 			__atomic_store_n(sq_tail, (tail + to_submit), __ATOMIC_RELEASE);
 
 #if USE_SQPOLL
+			// NOTE: After the first time we submit work to the kernel, this flag seems
+			// to not be set again. Perhaps this thread needs to be idle for sq_thread_idle
+			// milliseconds instead of the kernel thread but we should check this further.
 			u32 flags = __atomic_load_n(sq_flags, __ATOMIC_RELAXED);
 			if(flags & IORING_SQ_NEED_WAKEUP){
 				printf("IORING_SQ_NEED_WAKEUP\n");
@@ -270,13 +273,10 @@ int main(int argc, char **argv){
 				printf("io_uring_enter failed (errno = %d)\n", errno);
 #endif
 
-			if(to_submit != echo_sq_num){
-				u32 sleft = echo_sq_num - to_submit;
-				for(u32 i = 0; i < sleft; i += 1)
+			echo_sq_num -= to_submit;
+			if(echo_sq_num > 0){
+				for(u32 i = 0; i < echo_sq_num; i += 1)
 					echo_sq[i] = echo_sq[to_submit + i];
-				echo_sq_num -= to_submit;
-			}else{
-				echo_sq_num = 0;
 			}
 		}
 
